@@ -9,7 +9,7 @@ import pickle
 import torch.nn.functional as F
 
 from momentfm import MOMENTPipeline
-from cl_utils import set_seed, AverageMeter, save_checkpoint, get_device
+from utils import set_seed, AverageMeter, save_checkpoint, get_device
 
 class MultiHeadClassifier(nn.Module):
     def __init__(self, n_tasks, classes_per_task, d_model, hidden_dim=128, dropout=0.3):

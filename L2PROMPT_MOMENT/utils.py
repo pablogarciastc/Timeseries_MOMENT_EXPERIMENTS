@@ -1,7 +1,3 @@
-"""
-Utilidades y funciones auxiliares para el proyecto
-"""
-
 import torch
 import numpy as np
 import random
@@ -13,7 +9,6 @@ import logging
 
 
 def set_seed(seed=42):
-    """Establece semilla para reproducibilidad"""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -24,20 +19,17 @@ def set_seed(seed=42):
 
 
 def load_config(config_path='config.yaml'):
-    """Carga configuración desde archivo YAML"""
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
 
 
 def save_config(config, save_path):
-    """Guarda configuración"""
     with open(save_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
 
 
 class AverageMeter:
-    """Calcula y almacena promedio y valor actual"""
     def __init__(self):
         self.reset()
 
@@ -55,14 +47,12 @@ class AverageMeter:
 
 
 def count_parameters(model, trainable_only=False):
-    """Cuenta parámetros del modelo"""
     if trainable_only:
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
     return sum(p.numel() for p in model.parameters())
 
 
 def format_time(seconds):
-    """Formatea segundos a formato legible"""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
@@ -76,7 +66,6 @@ def format_time(seconds):
 
 
 def setup_logger(log_dir='logs', name='training'):
-    """Configura logger"""
     log_dir = Path(log_dir)
     log_dir.mkdir(exist_ok=True)
     
@@ -96,7 +85,6 @@ def setup_logger(log_dir='logs', name='training'):
 
 
 def save_checkpoint(state, save_path, is_best=False):
-    """Guarda checkpoint del modelo"""
     torch.save(state, save_path)
     if is_best:
         best_path = str(save_path).replace('.pt', '_best.pt')
@@ -104,7 +92,6 @@ def save_checkpoint(state, save_path, is_best=False):
 
 
 def load_checkpoint(checkpoint_path, model, optimizer=None, device='cuda'):
-    """Carga checkpoint"""
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     
@@ -115,14 +102,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, device='cuda'):
 
 
 class EarlyStopping:
-    """Early stopping para evitar overfitting"""
     def __init__(self, patience=10, min_delta=0, mode='max'):
-        """
-        Args:
-            patience: Número de épocas sin mejora antes de parar
-            min_delta: Mínima mejora para considerar
-            mode: 'max' para accuracy, 'min' para loss
-        """
         self.patience = patience
         self.min_delta = min_delta
         self.mode = mode
@@ -150,27 +130,23 @@ class EarlyStopping:
 
 
 def get_lr(optimizer):
-    """Obtiene learning rate actual"""
     for param_group in optimizer.param_groups:
         return param_group['lr']
 
 
 def freeze_layers(model, layer_names):
-    """Congela capas específicas del modelo"""
     for name, param in model.named_parameters():
         if any(layer_name in name for layer_name in layer_names):
             param.requires_grad = False
 
 
 def unfreeze_layers(model, layer_names):
-    """Descongela capas específicas"""
     for name, param in model.named_parameters():
         if any(layer_name in name for layer_name in layer_names):
             param.requires_grad = True
 
 
 def print_model_summary(model):
-    """Imprime resumen del modelo"""
     print("\n" + "="*80)
     print("MODEL SUMMARY")
     print("="*80)
@@ -198,7 +174,6 @@ def print_model_summary(model):
 
 
 def calculate_class_weights(labels, n_classes=None):
-    """Calcula pesos de clase para dataset desbalanceado"""
     if n_classes is None:
         n_classes = len(np.unique(labels))
     
@@ -209,17 +184,6 @@ def calculate_class_weights(labels, n_classes=None):
 
 
 def mixup_data(x, y, alpha=0.2):
-    """
-    Aplica MixUp data augmentation
-    
-    Args:
-        x: input batch [batch_size, ...]
-        y: labels [batch_size]
-        alpha: mixup parameter
-    
-    Returns:
-        mixed inputs, pairs of targets, and lambda
-    """
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -235,35 +199,21 @@ def mixup_data(x, y, alpha=0.2):
 
 
 def time_series_augmentation(x, methods=['jitter', 'scaling', 'rotation']):
-    """
-    Data augmentation para series temporales
-    
-    Args:
-        x: tensor [batch, channels, seq_len]
-        methods: lista de métodos a aplicar
-    
-    Returns:
-        x_aug: datos aumentados
-    """
     x_aug = x.clone()
     
     if 'jitter' in methods:
-        # Añadir ruido gaussiano
         noise = torch.randn_like(x_aug) * 0.05
         x_aug = x_aug + noise
     
     if 'scaling' in methods:
-        # Escalar amplitud
         scale = torch.FloatTensor(1).uniform_(0.8, 1.2).to(x.device)
         x_aug = x_aug * scale
     
     if 'rotation' in methods:
-        # Rotación temporal (shift circular)
         shift = np.random.randint(0, x_aug.size(2))
         x_aug = torch.roll(x_aug, shifts=shift, dims=2)
     
     if 'magnitude_warp' in methods:
-        # Deformación de magnitud
         from scipy.interpolate import CubicSpline
         orig_steps = np.arange(x_aug.size(2))
         random_warps = np.random.normal(loc=1.0, scale=0.2, size=(x_aug.size(1), 4))
@@ -278,7 +228,6 @@ def time_series_augmentation(x, methods=['jitter', 'scaling', 'rotation']):
 
 
 def save_predictions(predictions, labels, save_path='predictions.json'):
-    """Guarda predicciones en formato JSON"""
     results = {
         'predictions': predictions.tolist() if isinstance(predictions, np.ndarray) else predictions,
         'labels': labels.tolist() if isinstance(labels, np.ndarray) else labels,
@@ -290,7 +239,6 @@ def save_predictions(predictions, labels, save_path='predictions.json'):
 
 
 def get_device(prefer_cuda=True):
-    """Obtiene el mejor dispositivo disponible"""
     if prefer_cuda and torch.cuda.is_available():
         device = torch.device('cuda')
         print(f"Using CUDA: {torch.cuda.get_device_name(0)}")
@@ -304,7 +252,6 @@ def get_device(prefer_cuda=True):
 
 
 def moving_average(values, window=10):
-    """Calcula media móvil"""
     if len(values) < window:
         return values
     
@@ -313,7 +260,6 @@ def moving_average(values, window=10):
 
 
 class ProgressTracker:
-    """Rastrea progreso del entrenamiento"""
     def __init__(self):
         self.history = {
             'train_loss': [],
@@ -326,7 +272,6 @@ class ProgressTracker:
         self.best_epoch = 0
     
     def update(self, epoch, train_loss, train_acc, val_loss, val_acc, lr):
-        """Actualiza métricas"""
         self.history['train_loss'].append(train_loss)
         self.history['train_acc'].append(train_acc)
         self.history['val_loss'].append(val_loss)
@@ -338,18 +283,15 @@ class ProgressTracker:
             self.best_epoch = epoch
     
     def save(self, save_path='training_history.json'):
-        """Guarda historial"""
         with open(save_path, 'w') as f:
             json.dump(self.history, f, indent=2)
     
     def load(self, load_path='training_history.json'):
-        """Carga historial"""
         with open(load_path, 'r') as f:
             self.history = json.load(f)
 
 
 def print_training_config(args):
-    """Imprime configuración de entrenamiento"""
     print("\n" + "="*80)
     print("TRAINING CONFIGURATION")
     print("="*80)
@@ -358,31 +300,3 @@ def print_training_config(args):
         print(f"{key:25s} : {value}")
     
     print("="*80 + "\n")
-
-
-if __name__ == "__main__":
-    # Tests de funciones
-    print("Testing utilities...")
-    
-    # Test set_seed
-    set_seed(42)
-    print("✓ Seed set")
-    
-    # Test AverageMeter
-    meter = AverageMeter()
-    meter.update(10)
-    meter.update(20)
-    print(f"✓ AverageMeter: {meter.avg}")
-    
-    # Test format_time
-    print(f"✓ Format time: {format_time(3661)}")
-    
-    # Test EarlyStopping
-    early_stop = EarlyStopping(patience=3, mode='max')
-    for score in [0.8, 0.85, 0.83, 0.84, 0.82]:
-        stopped = early_stop(score)
-        if stopped:
-            print(f"✓ Early stopping triggered")
-            break
-    
-    print("\nAll tests passed!")
