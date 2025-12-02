@@ -21,14 +21,6 @@ from utils import set_seed, AverageMeter, save_checkpoint, get_device
 
 
 class ContinualLearningTrainer:
-    """
-    Trainer con parameter freezing correcto
-
-    Estrategia:
-    1. Train Task T â†’ congela classifier head T y task key T
-    2. Train Task T+1 â†’ solo head T+1 y key T+1 son trainable
-    3. L2Prompt pool se entrena con LR reducido despuÃ©s del primer task
-    """
 
     def __init__(self, args):
         self.args = args
@@ -44,7 +36,6 @@ class ContinualLearningTrainer:
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
 
-        # Crear asignación automática de clases por tarea
         self.task_classes = {
             i: list(range(i * self.classes_per_task, (i + 1) * self.classes_per_task))
             for i in range(self.n_tasks)
@@ -81,14 +72,12 @@ class ContinualLearningTrainer:
 
         print(f"Train: {self.x_train.shape}, Test: {self.x_test.shape}")
 
-        # Detectar número total de clases
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
         if n_classes % self.n_tasks != 0:
             print(f"⚠️ Aviso: {n_classes} clases no se dividen exactamente entre {self.n_tasks} tareas.")
             print("Las últimas tareas podrían tener menos clases.")
 
-        # Crear asignación automática de clases por tarea
         self.task_classes = {}
         for i in range(self.n_tasks):
             start = i * self.classes_per_task
@@ -99,7 +88,6 @@ class ContinualLearningTrainer:
         for tid, classes in self.task_classes.items():
             print(f"Task {tid+1}: {classes}")
 
-        # Crear subconjuntos de entrenamiento y test
         self.task_train_data = {}
         self.task_test_data = {}
 
@@ -125,13 +113,10 @@ class ContinualLearningTrainer:
             num_workers=2
         )
 
-        # ðŸ”§ CRITICAL: Learning rates diferenciados
         if task_id == 0:
-            # Primer task: LR normal para todo
             prompt_lr = self.args.lr
         else:
-            # Tasks siguientes: LR reducido para prompts
-            prompt_lr = self.args.lr * 0.1  # 10x mÃ¡s bajo
+            prompt_lr = self.args.lr * 0.1
 
         optimizer_params = [
             {
@@ -146,7 +131,7 @@ class ContinualLearningTrainer:
             },
             {
                 'params': [self.model.task_predictor.task_keys[task_id]],
-                'lr': self.args.lr * 2.0,  # 2x mÃ¡s alto para task prediction
+                'lr': self.args.lr * 2.0,
                 'name': 'task_key'
             }
         ]
@@ -200,7 +185,6 @@ class ContinualLearningTrainer:
             print(f"Epoch {epoch+1}: Loss={losses.avg:.4f}, "
                   f"Cls={cls_accs.avg*100:.2f}%, Task={task_accs.avg*100:.2f}%")
 
-        # ðŸ”’ CRITICAL: Congelar task despuÃ©s de entrenar
         self.model.freeze_task(task_id)
         print(f"\nðŸ”’ Task {task_id} congelado\n")
 
@@ -449,7 +433,6 @@ def main():
     parser.add_argument('--top_k', type=int, default=5)
     parser.add_argument('--n_tasks', type=int, default=6)
 
-    # ðŸ”§ CRITICAL: task_loss_weight mÃ¡s alto
     parser.add_argument('--task_loss_weight', type=float, default=1.0)
 
     # Training
