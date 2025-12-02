@@ -1,0 +1,56 @@
+# Configuration for DailySport Continual Learning with MOMENT+APT
+
+# Dataset configuration
+dataset: 'DailySport'
+dataroot: './data/dailysport'  # Path to your DailySport data
+num_classes: 19
+train_aug: False  # Set True for time series augmentation
+validation: False
+
+# Task split configuration
+# For 19 classes, example splits:
+# Option 1: 10-3-3-3 (4 tasks)
+# Option 2: 5-2-2-2-2-2-2-2 (8 tasks)
+first_split_size: 10
+other_split_size: 3
+max_task: -1  # -1 means do all tasks
+rand_split: False  # Set True to randomize class order
+
+# Model configuration
+model_type: 'moment'
+model_name: 'vit_apt_moment'  # MOMENT with APT
+learner_type: 'prompt'
+learner_name: 'APT_Learner'
+
+# APT-specific parameters
+prompt_param: ['1', '1', '1']  # [pool_size, e_prompt_len, g_prompt_len]
+ema_coeff: 0.5  # EMA coefficient for prompt merging
+
+# Training hyperparameters
+batch_size: 32  # Adjust based on your GPU memory
+lr: 0.001  # Learning rate (lower for time series)
+momentum: 0.9
+weight_decay: 0.0001
+schedule: 50  # Number of epochs
+schedule_type: 'cosine'
+optimizer: 'Adam'  # Adam often works better for time series
+
+# Continual learning settings
+memory: 200  # Memory buffer size for replay (0 for rehearsal-free)
+temp: 2.0  # Temperature for distillation
+DW: False  # Dataset balancing
+oracle_flag: False  # Upper bound (train on all data at once)
+upper_bound_flag: False
+
+# Hardware configuration
+gpuid: [0]  # GPU IDs to use
+workers: 4  # Number of data loading workers
+
+# Experiment settings
+repeat: 3  # Number of random seeds/repetitions
+seed: 42
+debug_mode: 0
+overwrite: 1  # Set to 1 to overwrite existing results
+
+# Output
+log_dir: './outputs/dailysport_apt_moment'

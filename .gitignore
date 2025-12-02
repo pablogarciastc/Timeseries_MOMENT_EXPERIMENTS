@@ -1,0 +1,17 @@
+# Datasets grandes
+data/
+*.pkl
+*.pt
+*.npz
+*.npy
+
+# Cosas típicas de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+.env*/
+.venv*/
+.ipynb_checkpoints/
