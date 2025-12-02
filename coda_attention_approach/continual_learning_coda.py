@@ -1,10 +1,4 @@
-"""
-Continual Learning with MOMENT + CODA-Prompt + Multi-Head
 
-Uses CODA-Prompt's dual-pool strategy:
-- G-Prompt: Task-specific prompts (frozen after training)
-- E-Prompt: Shared general prompts (continue learning)
-"""
 
 import torch
 import torch.nn as nn
@@ -23,14 +17,6 @@ from utils import set_seed, AverageMeter, save_checkpoint, get_device
 
 
 class ContinualLearningTrainer:
-    """
-    Trainer with CODA-Prompt parameter freezing strategy
-
-    Strategy:
-    1. Train Task T → freeze classifier head T, G-Prompt T, and task key T
-    2. Train Task T+1 → only head T+1, G-Prompt T+1, and key T+1 are trainable
-    3. E-Prompt pool continues learning with reduced LR after first task
-    """
 
     def __init__(self, args):
         self.args = args
@@ -46,7 +32,6 @@ class ContinualLearningTrainer:
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
 
-        # Create automatic class assignment per task
         self.task_classes = {
             i: list(range(i * self.classes_per_task, (i + 1) * self.classes_per_task))
             for i in range(self.n_tasks)
@@ -65,7 +50,7 @@ class ContinualLearningTrainer:
             moment_model=args.moment_model,
             use_g_prompt=args.use_g_prompt,
             use_e_prompt=args.use_e_prompt,
-            task_predictor_type=args.task_predictor_type  # NEW!
+            task_predictor_type=args.task_predictor_type
         ).to(self.device)
 
         self.results = {
@@ -86,14 +71,12 @@ class ContinualLearningTrainer:
 
         print(f"Train: {self.x_train.shape}, Test: {self.x_test.shape}")
 
-        # Detect total number of classes
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
         if n_classes % self.n_tasks != 0:
             print(f"⚠️ Warning: {n_classes} classes don't divide evenly into {self.n_tasks} tasks.")
             print("Last tasks might have fewer classes.")
 
-        # Create automatic class assignment per task
         self.task_classes = {}
         for i in range(self.n_tasks):
             start = i * self.classes_per_task
@@ -104,7 +87,6 @@ class ContinualLearningTrainer:
         for tid, classes in self.task_classes.items():
             print(f"Task {tid+1}: {classes}")
 
-        # Create training and test subsets
         self.task_train_data = {}
         self.task_test_data = {}
 
@@ -130,17 +112,12 @@ class ContinualLearningTrainer:
             num_workers=2
         )
 
-        # 🔧 CRITICAL: Differentiated learning rates for CODA-Prompt
         if task_id == 0:
-            # First task: Normal LR for everything
             g_prompt_lr = self.args.lr
             e_prompt_lr = self.args.lr
         else:
-            # Subsequent tasks:
-            # - G-Prompt: normal LR (task-specific, starts from scratch)
-            # - E-Prompt: reduced LR (shared, already trained)
             g_prompt_lr = self.args.lr
-            e_prompt_lr = self.args.lr * 0.1  # 10x lower for shared prompts
+            e_prompt_lr = self.args.lr * 0.1
 
         optimizer_params = [
             {
@@ -150,9 +127,7 @@ class ContinualLearningTrainer:
             }
         ]
 
-        # Add task predictor parameters (depends on type)
         if hasattr(self.model.task_predictor, 'task_keys'):
-            # Old style: simple keys
             optimizer_params.extend([
                 {
                     'params': [self.model.task_predictor.task_keys[task_id]],
@@ -166,7 +141,6 @@ class ContinualLearningTrainer:
                 }
             ])
         elif hasattr(self.model.task_predictor, 'task_prototypes'):
-            # New style: attention-based with prototypes
             optimizer_params.extend([
                 {
                     'params': [self.model.task_predictor.task_prototypes],
@@ -190,7 +164,6 @@ class ContinualLearningTrainer:
                 }
             ])
         elif hasattr(self.model.task_predictor, 'attention_predictor'):
-            # Hybrid style
             optimizer_params.extend([
                 {
                     'params': self.model.task_predictor.attention_predictor.parameters(),
@@ -209,7 +182,6 @@ class ContinualLearningTrainer:
                 }
             ])
 
-        # Add CODA-Prompt parameters
         if self.args.use_g_prompt:
             optimizer_params.append({
                 'params': [self.model.coda_prompt.g_prompts[task_id]],
@@ -234,7 +206,6 @@ class ContinualLearningTrainer:
         optimizer = optim.Adam(optimizer_params, weight_decay=self.args.weight_decay)
         criterion = nn.CrossEntropyLoss()
 
-        # Training loop
         self.model.train()
         for epoch in range(epochs):
             losses = AverageMeter()
@@ -250,17 +221,14 @@ class ContinualLearningTrainer:
 
                 optimizer.zero_grad()
 
-                # Convert to local labels
                 local_labels = y_batch - (task_id * self.classes_per_task)
 
-                # Forward with task loss
                 logits, task_loss, task_acc, task_info = self.model.forward_with_task_loss(
                     x_batch, y_batch, task_id
                 )
 
                 cls_loss = criterion(logits, local_labels)
 
-                # Add diversity loss if available
                 diversity_loss = task_info.get('diversity_loss', 0)
                 if isinstance(diversity_loss, torch.Tensor):
                     total_loss = cls_loss + self.args.task_loss_weight * task_loss + \
@@ -270,7 +238,6 @@ class ContinualLearningTrainer:
 
                 total_loss.backward()
 
-                # Gradient clipping for stability
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
                 optimizer.step()
@@ -293,11 +260,9 @@ class ContinualLearningTrainer:
             print(f"Epoch {epoch+1}: Loss={losses.avg:.4f}, "
                   f"Cls={cls_accs.avg*100:.2f}%, Task={task_accs.avg*100:.2f}%")
 
-        # 🔒 CRITICAL: Freeze task after training
         self.model.freeze_task(task_id)
         print(f"\n🔒 Task {task_id} frozen\n")
 
-        # Print CODA-Prompt statistics
         if self.args.use_e_prompt:
             stats = self.model.coda_prompt.get_prompt_statistics()
             if stats:
@@ -378,15 +343,12 @@ class ContinualLearningTrainer:
         initial_soft_accs = {}
 
         for task_id in range(self.n_tasks):
-            # Train
             self.train_task(task_id, self.args.epochs_per_task)
 
-            # Evaluate
             print(f"\n{'='*80}")
             print(f"Evaluation after Task {task_id + 1}")
             print(f"{'='*80}")
 
-            # Oracle mode
             print(f"\n--- Oracle Mode (Upper Bound) ---")
             oracle_accs = self.evaluate_all_tasks(up_to_task=task_id + 1, use_oracle=True)
 
@@ -398,7 +360,6 @@ class ContinualLearningTrainer:
             oracle_avg = np.mean(list(oracle_accs.values()))
             print(f"Average: {oracle_avg:.2f}%")
 
-            # Soft prediction mode
             print(f"\n--- Soft Prediction Mode ---")
             soft_accs, task_pred_accs = self.evaluate_all_tasks(up_to_task=task_id + 1, use_oracle=False)
 
@@ -413,7 +374,6 @@ class ContinualLearningTrainer:
             print(f"Average Acc: {soft_avg:.2f}%")
             print(f"Average Task Pred: {task_pred_avg:.2f}%")
 
-            # Forgetting
             if task_id > 0:
                 print(f"\n--- Forgetting ---")
 
@@ -533,21 +493,17 @@ class ContinualLearningTrainer:
 def main():
     parser = argparse.ArgumentParser(description='Continual Learning with CODA-Prompt')
 
-    # Dataset
     parser.add_argument('--dataset', type=str, default='dailysport')
 
-    # Data files
     parser.add_argument('--x_train', type=str, default='x_train.pkl')
     parser.add_argument('--x_test', type=str, default='x_test.pkl')
     parser.add_argument('--state_train', type=str, default='state_train.pkl')
     parser.add_argument('--state_test', type=str, default='state_test.pkl')
 
-    # Model
     parser.add_argument('--moment_model', type=str, default='small',
                         choices=['small', 'base', 'large'])
     parser.add_argument('--n_tasks', type=int, default=6)
 
-    # CODA-Prompt specific
     parser.add_argument('--prompt_length', type=int, default=5,
                         help='Length of each prompt')
     parser.add_argument('--pool_size', type=int, default=10,
@@ -559,7 +515,6 @@ def main():
     parser.add_argument('--use_e_prompt', action='store_true', default=True,
                         help='Use E-Prompt (shared general prompts)')
 
-    # Task predictor
     parser.add_argument('--task_predictor_type', type=str, default='attention',
                         choices=['simple', 'attention', 'hybrid'],
                         help='Type of task predictor: simple (key matching), '
@@ -569,13 +524,11 @@ def main():
     parser.add_argument('--diversity_loss_weight', type=float, default=0.01,
                         help='Weight for prompt diversity loss')
 
-    # Training
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--epochs_per_task', type=int, default=20)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
 
-    # Other
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output_dir', type=str, default='coda_results')
     parser.add_argument('--save_checkpoints', action='store_true')
