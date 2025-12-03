@@ -2,8 +2,8 @@
 
 # Dataset configuration
 dataset: 'DailySport'
-dataroot: './data/dailysport'  # Path to your DailySport data
-num_classes: 19
+dataroot: '../data/dailysport'  # Path to your DailySport data
+num_classes: 18
 train_aug: False  # Set True for time series augmentation
 validation: False
 

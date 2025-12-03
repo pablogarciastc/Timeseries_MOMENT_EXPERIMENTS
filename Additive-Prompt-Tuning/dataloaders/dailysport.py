@@ -1,10 +1,3 @@
-"""
-DailySport Time Series Dataset Loader for APT Framework
-Updated to work with your actual data structure:
-- state_train.pkl, state_test.pkl
-- x_train.pkl, x_test.pkl
-"""
-
 import os
 import numpy as np
 import torch
@@ -13,86 +6,50 @@ import pickle
 
 
 class iDailySport(Dataset):
-    """
-    Incremental DailySport dataset for continual learning
-
-    Works with your existing pickle files:
-    - state_train.pkl, state_test.pkl (labels)
-    - x_train.pkl, x_test.pkl (data)
-    """
 
     def __init__(self, root, train=True, tasks=None, download_flag=False,
                  transform=None, seed=0, rand_split=False, validation=False):
-        """
-        Args:
-            root: path to dataset (e.g., './data/dailysport')
-            train: train or test split
-            tasks: list of lists, each sublist contains class indices for that task
-            transform: data augmentation (for time series: jittering, scaling, etc.)
-            seed: random seed
-            rand_split: whether to randomize class order
-            validation: use validation set
-        """
         self.root = os.path.expanduser(root)
         self.train = train
         self.validation = validation
         self.transform = transform
         self.seed = seed
-
-        # DailySport-specific parameters
         self.num_classes = 19
-
-        # Continual learning setup
         self.tasks = tasks
-        self.t = -1  # current task index
-
-        # Storage for coreset (memory replay)
+        self.t = -1
         self.coreset = []
-
-        # Load the dataset
         self._load_data()
-
         print(f"DailySport loaded: {len(self.data)} samples")
         print(f"Data shape: {self.data.shape}")
         print(f"Labels: {np.unique(self.labels)}")
 
     def _load_data(self):
-        """Load DailySport dataset from your pickle files"""
-
         if self.train:
-            # Load training data
             data_file = os.path.join(self.root, 'x_train.pkl')
             label_file = os.path.join(self.root, 'state_train.pkl')
         else:
-            # Load test data
             data_file = os.path.join(self.root, 'x_test.pkl')
             label_file = os.path.join(self.root, 'state_test.pkl')
 
-        # Check files exist
         if not os.path.exists(data_file):
             raise FileNotFoundError(f"Data file not found: {data_file}")
         if not os.path.exists(label_file):
             raise FileNotFoundError(f"Label file not found: {label_file}")
 
-        # Load data
         with open(data_file, 'rb') as f:
             self.data = pickle.load(f)
 
-        # Load labels
         with open(label_file, 'rb') as f:
             self.labels = pickle.load(f)
 
-        # Convert to numpy arrays if not already
         if not isinstance(self.data, np.ndarray):
             self.data = np.array(self.data)
         if not isinstance(self.labels, np.ndarray):
             self.labels = np.array(self.labels)
 
-        # Ensure labels are 1D
         if len(self.labels.shape) > 1:
             self.labels = self.labels.flatten()
 
-        # Check if labels need adjustment (if they're 1-indexed instead of 0-indexed)
         unique_labels = np.unique(self.labels)
         if unique_labels.min() == 1:
             print("Converting labels from 1-indexed to 0-indexed")
@@ -103,34 +60,15 @@ class iDailySport(Dataset):
         print(f"Label range: {self.labels.min()} to {self.labels.max()}")
 
     def load_dataset(self, t, train=True):
-        """
-        Load a specific task
-
-        Args:
-            t: task index
-            train: whether to use training mode (affects coreset)
-        """
         self.t = t
         self.train = train
-
-        # Get class indices for this task
         task_classes = self.tasks[t]
-
-        # Filter data for current task
         mask = np.isin(self.labels, task_classes)
         self.task_data = self.data[mask]
         self.task_labels = self.labels[mask]
-
-        print(f"Task {t}: Loaded {len(self.task_data)} samples "
-              f"for classes {task_classes}")
+        print(f"Task {t}: Loaded {len(self.task_data)} samples for classes {task_classes}")
 
     def append_coreset(self, only=False):
-        """
-        Add coreset (memory) samples to current task data
-
-        Args:
-            only: if True, use only coreset; if False, combine with task data
-        """
         if len(self.coreset) == 0:
             return
 
@@ -154,62 +92,38 @@ class iDailySport(Dataset):
         print(f"Coreset: {len(coreset_data)} samples added")
 
     def update_coreset(self, coreset_size, seen_classes):
-        """
-        Update coreset with exemplars from seen classes
-
-        Args:
-            coreset_size: total number of samples to keep in memory
-            seen_classes: classes seen so far
-        """
         if coreset_size == 0:
             return
 
-        # Samples per class
         num_classes_seen = len(seen_classes)
         samples_per_class = coreset_size // num_classes_seen
 
         self.coreset = []
 
         for class_idx in seen_classes:
-            # Get all samples for this class
             class_mask = self.labels == class_idx
             class_data = self.data[class_mask]
             class_labels = self.labels[class_mask]
 
-            # Random sampling (you could use other strategies)
             if len(class_data) > samples_per_class:
                 indices = np.random.choice(len(class_data), samples_per_class, replace=False)
                 class_data = class_data[indices]
                 class_labels = class_labels[indices]
 
-            # Add to coreset
             for data, label in zip(class_data, class_labels):
                 self.coreset.append((data, label))
 
-        print(f"Coreset updated: {len(self.coreset)} samples, "
-              f"{samples_per_class} per class")
+        print(f"Coreset updated: {len(self.coreset)} samples, {samples_per_class} per class")
 
     def __len__(self):
-        """Return number of samples in current task (including coreset)"""
         return len(self.task_data)
 
     def __getitem__(self, idx):
-        """
-        Get a single sample
-
-        Returns:
-            data: time series tensor [sequence_length, num_channels]
-            label: class label
-            task_id: current task index (for task-aware scenarios)
-        """
         data = self.task_data[idx]
         label = self.task_labels[idx]
-
-        # Convert to tensor
         data = torch.FloatTensor(data)
         label = torch.LongTensor([label])[0]
 
-        # Apply transform if any (for time series augmentation)
         if self.transform is not None:
             data = self.transform(data)
 
@@ -217,27 +131,15 @@ class iDailySport(Dataset):
 
 
 class TimeSeriesTransform:
-    """
-    Data augmentation for time series
-    Can include: jittering, scaling, rotation, permutation, etc.
-    """
     def __init__(self, jitter_ratio=0.05, scale_ratio=0.1):
         self.jitter_ratio = jitter_ratio
         self.scale_ratio = scale_ratio
 
     def __call__(self, x):
-        """
-        Apply augmentation to time series
-
-        Args:
-            x: tensor of shape [sequence_length, num_channels]
-        """
-        # Jittering: add small noise
         if self.jitter_ratio > 0:
             noise = torch.randn_like(x) * self.jitter_ratio * x.std()
             x = x + noise
 
-        # Scaling
         if self.scale_ratio > 0:
             scale = 1 + (torch.rand(1) - 0.5) * 2 * self.scale_ratio
             x = x * scale
@@ -246,41 +148,31 @@ class TimeSeriesTransform:
 
 
 def get_dailysport_dataloader(args):
-    """
-    Convenience function to create DailySport dataloaders
-    """
-    # Example task split for 19 classes
-    # Adjust based on your preference
     if args.first_split_size == 10 and args.other_split_size == 3:
-        # 10-3-3-3 split (4 tasks)
         tasks = [
-            list(range(0, 10)),   # Task 0: classes 0-9
-            list(range(10, 13)),  # Task 1: classes 10-12
-            list(range(13, 16)),  # Task 2: classes 13-15
-            list(range(16, 19)),  # Task 3: classes 16-18
+            list(range(0, 10)),
+            list(range(10, 13)),
+            list(range(13, 16)),
+            list(range(16, 19)),
         ]
     elif args.first_split_size == 5 and args.other_split_size == 2:
-        # 5-2-2-2-2-2-2-2 split (8 tasks)
         tasks = [
-            list(range(0, 5)),    # Task 0
-            list(range(5, 7)),    # Task 1
-            list(range(7, 9)),    # Task 2
-            list(range(9, 11)),   # Task 3
-            list(range(11, 13)),  # Task 4
-            list(range(13, 15)),  # Task 5
-            list(range(15, 17)),  # Task 6
-            list(range(17, 19)),  # Task 7
+            list(range(0, 5)),
+            list(range(5, 7)),
+            list(range(7, 9)),
+            list(range(9, 11)),
+            list(range(11, 13)),
+            list(range(13, 15)),
+            list(range(15, 17)),
+            list(range(17, 19)),
         ]
     elif args.first_split_size == 1 and args.other_split_size == 1:
-        # 1-1-1-... split (19 tasks, one class per task)
         tasks = [[i] for i in range(19)]
     else:
         raise ValueError(f"Unsupported split: {args.first_split_size}-{args.other_split_size}")
 
-    # Create transform
     transform = TimeSeriesTransform() if args.train_aug else None
 
-    # Create datasets
     train_dataset = iDailySport(
         root=args.dataroot,
         train=True,
@@ -304,20 +196,13 @@ def get_dailysport_dataloader(args):
     return train_dataset, test_dataset
 
 
-# For compatibility with the APT framework
 class iDailyAndSports(iDailySport):
-    """Alias for compatibility"""
     pass
 
 
-# Quick test function
 def test_dataloader():
-    """
-    Test the dataloader with your actual data
-    """
     import argparse
 
-    # Create dummy args
     args = argparse.Namespace()
     args.dataroot = './data/dailysport'
     args.first_split_size = 10
@@ -330,20 +215,14 @@ def test_dataloader():
     print("Testing DailySport dataloader...")
 
     try:
-        # Create datasets
         train_dataset, test_dataset = get_dailysport_dataloader(args)
-
-        # Load first task
         train_dataset.load_dataset(0, train=True)
         test_dataset.load_dataset(0, train=False)
-
-        # Get a sample
         data, label, task = train_dataset[0]
         print(f"\nSample data shape: {data.shape}")
         print(f"Sample label: {label}")
         print(f"Task ID: {task}")
 
-        # Test dataloader
         from torch.utils.data import DataLoader
         train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 

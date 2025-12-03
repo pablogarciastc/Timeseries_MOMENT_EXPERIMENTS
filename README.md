@@ -22,7 +22,7 @@ This repository implements CODA-Prompt based on   ["CODA-Prompt" (arxiv:2211.132
 combined with MOMENT with an attention-based task predictor to address feature
 space collapse issues. The approach uses dual prompting (task-specific G-prompts and shared E-prompts).`
 #### Use command example
-`python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
+`python3 continual_learning_coda.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
 
 
@@ -37,11 +37,11 @@ classification heads per task to prevent catastrophic forgetting. The L2-Prompt 
 prompts based on cosine similarity between input queries and learned keys, enabling knowledge sharing 
 across tasks while maintaining task-specific adaptations.
 #### Use command example
+`python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
 
 ## LETS-C-Approach
 
-`python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
 #### Description
 This repository combines CODA-Prompt with the LETS methodology from 
@@ -49,6 +49,7 @@ This repository combines CODA-Prompt with the LETS methodology from
 without Moment. The TextLETS encoder converts time series to text using LLaMA, which is then processed through the prompting mechanism.
 The architecture includes a task predictor.
 #### Use command example
+`python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
 
 ## LETS-C-Approach-Plus-MOMENT
@@ -62,6 +63,7 @@ The basic approach (`main.py`) uses a frozen MOMENT backbone with a learnable pr
 that dynamically selects prompts based on input similarity. The TextLETS approach (`textlets_multihead.py`)
 combines text-based embeddings with MOMENT, using multi-head classifiers and task prediction.
 #### Use command example
+`python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
 
 

@@ -1,9 +1,3 @@
-"""
-Continual Learning con MOMENT + L2Prompt + Multi-Head
-
-CON PARAMETER FREEZING CORRECTO para prevenir forgetting
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim

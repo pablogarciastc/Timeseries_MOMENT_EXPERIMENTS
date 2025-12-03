@@ -8,18 +8,6 @@ from tqdm import tqdm
 import argparse
 from pathlib import Path
 
-try:
-    from momentfm import MOMENTPipeline
-except ImportError:
-    print("WARNING: MOMENT no está instalado. Instala con: pip install momentfm")
-    print("Usando mock para demostración")
-    MOMENTPipeline = None
-
-try:
-    from momentfm.utils.utils import control_randomness
-except ImportError:
-    control_randomness = None
-
 
 class L2PromptLayer(nn.Module):
 
