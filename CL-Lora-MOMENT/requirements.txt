@@ -1,9 +1,14 @@
+# requirements.txt - Fixed dependencies
+
 torch==2.4.1
 torchvision==0.19.1
-transformers==4.57.1
-tokenizers==0.22.1
 momentfm==0.1.4
 timm==0.4.12
+
+# Use compatible versions with momentfm
+transformers==4.33.3
+tokenizers==0.13.3
+huggingface-hub==0.24.0
 
 numpy==2.2.6
 scipy==1.15.3
@@ -17,7 +22,6 @@ scikit-learn==1.2.0
 matplotlib==3.10.7
 seaborn==0.13.2
 
-huggingface-hub==0.36.0
 tqdm==4.67.1
 pyyaml==6.0.2
 easydict==1.13
