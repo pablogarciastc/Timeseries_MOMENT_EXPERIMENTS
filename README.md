@@ -34,13 +34,10 @@ space collapse issues. The approach uses dual prompting (task-specific G-prompts
 ## L2PROMPT_MOMENT
 
 #### Description
-This repository implements continual learning for time series classification using MOMENT 
+This repository uses MOMENT 
 foundation model with L2-Prompt and multi-head classifiers. The approach uses a frozen MOMENT backbone 
-for feature extraction, followed by L2-Prompt for dynamic prompt selection. The architecture includes a
-task predictor that automatically identifies which task a sample belongs to during inference, and separate 
-classification heads per task to prevent catastrophic forgetting. The L2-Prompt pool selects relevant 
-prompts based on cosine similarity between input queries and learned keys, enabling knowledge sharing 
-across tasks while maintaining task-specific adaptations.
+for feature extraction, followed by L2-Prompt for dynamic prompt selection. There is also a
+task predictor.
 #### Use command example
 `python3 continual_learning.py --prompt_length 5 --pool_size 20 --top_k 2 --n_tasks 6 --batch_size 16 --epochs_per_task 5`
 
