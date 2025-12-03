@@ -14,13 +14,6 @@ class CodaPrompt(nn.Module):
 
         # e prompt init
         for e in self.e_layers:
-            # for model saving/loading simplicity, we init the full parameters here
-            # however, please note that we reinit the new components at each task
-            # in the "spirit of continual learning", as we don't know how many tasks
-            # we will encounter at the start of the task sequence
-            #
-            # in the original paper, we used ortho init at the start - this modification is more 
-            # fair in the spirit of continual learning and has little affect on performance
             e_l = self.e_p_length
             p = self.tensor_prompt(self.e_pool_size, e_l, emb_d)
             k = self.tensor_prompt(self.e_pool_size, self.key_d)

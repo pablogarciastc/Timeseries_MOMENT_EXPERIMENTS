@@ -164,13 +164,6 @@ def get_backbone(args, pretrained=False):
         if args["model_name"] == "coda_prompt":
             from backbone import vit_coda_promtpt
             model = timm.create_model(args["backbone_type"], pretrained=args["pretrained"])
-            # model = vision_transformer_coda_prompt.VisionTransformer(img_size=224, patch_size=16, embed_dim=768, depth=12,
-            #                 num_heads=12, ckpt_layer=0,
-            #                 drop_path_rate=0)
-            # from timm.models import vit_base_patch16_224
-            # load_dict = vit_base_patch16_224(pretrained=True).state_dict()
-            # del load_dict['head.weight']; del load_dict['head.bias']
-            # model.load_state_dict(load_dict)
             return model
     elif '_ease' in name:
         ffn_num = args["ffn_num"]
@@ -454,7 +447,6 @@ class CosineIncrementalNet(BaseNet):
             fc = CosineLinear(in_dim, out_dim, self.nb_proxy, to_reduce=True)
         else:
             prev_out_features = self.fc.out_features // self.nb_proxy
-            # prev_out_features = self.fc.out_features
             fc = SplitCosineLinear(
                 in_dim, prev_out_features, out_dim - prev_out_features, self.nb_proxy
             )
@@ -1238,7 +1230,7 @@ class PabloNet(BaseNet):
         self.fc_list_task = nn.ModuleList()
         self.adapter_list = nn.ModuleList()
         self.init_proto = None
-        self.init_proto_list = nn.ModuleList()  # AÑADIDO: faltaba esta línea
+        self.init_proto_list = nn.ModuleList()
 
     def freeze(self):
         for name, param in self.named_parameters():
@@ -1262,13 +1254,11 @@ class PabloNet(BaseNet):
     def update_fc(self, nb_classes):
         self._cur_task += 1
 
-        # proxy_fc SIEMPRE usa out_dim (512), no feature_dim concatenado
         if self._cur_task == 0:
             self.proxy_fc = self.generate_fc(self.out_dim, self.init_cls).to(self._device)
         else:
             self.proxy_fc = self.generate_fc(self.out_dim, self.inc).to(self._device)
 
-        # init_proto también usa out_dim
         init_proto = self.generate_fc(self.out_dim, nb_classes).to(self._device)
 
         if self.init_proto is not None:
@@ -1277,8 +1267,6 @@ class PabloNet(BaseNet):
             init_proto.weight.data[: old_nb_classes, :] = nn.Parameter(weight)
         del self.init_proto
         self.init_proto = init_proto
-
-        # fc usa feature_dim (concatenado de todas las tareas)
         fc = self.generate_fc(self.feature_dim, nb_classes).to(self._device)
         fc.reset_parameters_to_zero()
 
@@ -1286,7 +1274,6 @@ class PabloNet(BaseNet):
             old_nb_classes = self.fc.out_features
             weight = copy.deepcopy(self.fc.weight.data)
             fc.sigma.data = self.fc.sigma.data
-            # Copiar pesos antiguos - ajustar índice para la nueva dimensión
             fc.weight.data[: old_nb_classes, : -self.out_dim] = nn.Parameter(weight)
         del self.fc
         self.fc = fc

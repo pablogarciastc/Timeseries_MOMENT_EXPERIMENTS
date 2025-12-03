@@ -175,7 +175,7 @@ class BaseLearner(object):
         vectors = (vectors.T / (np.linalg.norm(vectors.T, axis=0) + EPSILON)).T
 
         dists = cdist(class_means, vectors, "sqeuclidean")  # [nb_classes, N]
-        scores = dists.T  # [N, nb_classes], choose the one with the smallest distance
+        scores = dists.T
 
         return np.argsort(scores, axis=1)[:, : self.topk], y_true  # [N, topk]
 
@@ -273,10 +273,8 @@ class BaseLearner(object):
                 )  # Remove it to avoid duplicative selection
                 data = np.delete(
                     data, i, axis=0
-                )  # Remove it to avoid duplicative selection
+                )
 
-            # uniques = np.unique(selected_exemplars, axis=0)
-            # print('Unique elements: {}'.format(len(uniques)))
             selected_exemplars = np.array(selected_exemplars)
             exemplar_targets = np.full(m, class_idx)
             self._data_memory = (
@@ -290,7 +288,6 @@ class BaseLearner(object):
                 else exemplar_targets
             )
 
-            # Exemplar mean
             idx_dataset = data_manager.get_dataset(
                 [],
                 source="train",
@@ -313,7 +310,6 @@ class BaseLearner(object):
         )
         _class_means = np.zeros((self._total_classes, self.feature_dim))
 
-        # Calculate the means of old classes with newly trained network
         for class_idx in range(self._known_classes):
             mask = np.where(self._targets_memory == class_idx)[0]
             class_data, class_targets = (
@@ -334,7 +330,6 @@ class BaseLearner(object):
 
             _class_means[class_idx, :] = mean
 
-        # Construct exemplars for new classes and calculate the means
         for class_idx in range(self._known_classes, self._total_classes):
             data, targets, class_dset = data_manager.get_dataset(
                 np.arange(class_idx, class_idx + 1),
@@ -356,20 +351,20 @@ class BaseLearner(object):
             for k in range(1, m + 1):
                 S = np.sum(
                     exemplar_vectors, axis=0
-                )  # [feature_dim] sum of selected exemplars vectors
+                )
                 mu_p = (vectors + S) / k  # [n, feature_dim] sum to all vectors
                 i = np.argmin(np.sqrt(np.sum((class_mean - mu_p) ** 2, axis=1)))
 
                 selected_exemplars.append(
                     np.array(data[i])
-                )  # New object to avoid passing by inference
+                )
                 exemplar_vectors.append(
                     np.array(vectors[i])
-                )  # New object to avoid passing by inference
+                )
 
                 vectors = np.delete(
                     vectors, i, axis=0
-                )  # Remove it to avoid duplicative selection
+                )
                 data = np.delete(
                     data, i, axis=0
                 )  # Remove it to avoid duplicative selection

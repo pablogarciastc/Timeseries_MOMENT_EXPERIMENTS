@@ -15,12 +15,6 @@ def load_json(setting_path):
         param = json.load(data_file)
     return param
 
-# def setup_parser():
-#     parser = argparse.ArgumentParser(description='Reproduce of multiple pre-trained incremental learning algorthms.')
-#     parser.add_argument('--config', type=str, default='./exps/ease_food.json',
-#                         help='Json file of settings.')
-#     return parser
-
 def setup_parser():
     parser = argparse.ArgumentParser(description='Reproduce of multiple pre-trained incremental learning algorithms.')
     parser.add_argument('config', type=str, help='Json file of settings.')

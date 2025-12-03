@@ -49,7 +49,6 @@ class TextEmbedderLETS(nn.Module):
         return " ".join(channel_texts).strip()
 
     def forward(self, x):
-        # Normalizar a [0,1] por canal
         x_normalized = torch.zeros_like(x)
         for b in range(x.size(0)):
             for c in range(x.size(1)):
@@ -81,26 +80,19 @@ class TextEmbedderLETS(nn.Module):
 
 
 class TaskPredictor(nn.Module):
-    """
-    Predicts task-ID from features using learnable task keys.
-    Each task has an independent nn.Parameter that can be frozen.
-    """
 
     def __init__(self, n_tasks, d_model):
         super().__init__()
         self.n_tasks = n_tasks
         self.d_model = d_model
 
-        # Use ParameterList so we can freeze individual task keys
         self.task_keys = nn.ParameterList([
             nn.Parameter(torch.randn(d_model)) for _ in range(n_tasks)
         ])
 
-        # Initialize orthogonally for better separation
         for i, key in enumerate(self.task_keys):
             nn.init.normal_(key, mean=0, std=0.02)
 
-        # Temperature for softmax
         self.temperature = nn.Parameter(torch.ones(1))
 
         print(f"TaskPredictor: {n_tasks} tasks, {d_model} dims")
@@ -111,11 +103,9 @@ class TaskPredictor(nn.Module):
         return x * x_inv_norm
 
     def freeze_task_key(self, task_id):
-        """Freeze the key for a specific task"""
         self.task_keys[task_id].requires_grad = False
 
     def unfreeze_task_key(self, task_id):
-        """Unfreeze the key for a specific task"""
         self.task_keys[task_id].requires_grad = True
 
     def forward(self, x, training=False, task_id=None):
@@ -128,7 +118,6 @@ class TaskPredictor(nn.Module):
         task_probs = F.softmax(task_logits, dim=-1)
 
         if training and task_id is not None:
-            # supervision handled externally, no override here
             predicted_task = task_logits.argmax(dim=-1)
         else:
             _, pred_indices = task_logits.max(dim=-1)
@@ -166,23 +155,20 @@ class MultiHeadClassifier(nn.Module):
             mask = task_id == tid
             if mask.any():
                 logits[mask] = self.heads[tid](x[mask])
-        return logits  # ✓ CORREGIDO
+        return logits
 
 
 class PromptedMOMENT(nn.Module):
     def __init__(self, n_tasks, pool_size=20, prompt_length=5, top_k=5, classes_per_task=3, moment_model='small'):
         super().__init__()
 
-        # 1. Text Encoder (CONGELADO)
         self.text_encoder = TextEmbedderLETS(model_name="meta-llama/Llama-2-7b-hf")
 
         for p in self.text_encoder.model.parameters():
             p.requires_grad = False
 
-
         print("✓ Text encoder frozen (LLaMA + series_proj)")
 
-        # 2. MOMENT (CONGELADO)
         try:
             from momentfm import MOMENTPipeline
             model_name = f"AutonLab/MOMENT-1-{moment_model}"
@@ -207,13 +193,10 @@ class PromptedMOMENT(nn.Module):
             self.moment = nn.Identity()
             moment_d_model = 512
 
-        # 3. Projection (TRAINABLE - necesario para adaptar dimensiones)
         self.proj_to_moment = nn.Linear(self.text_encoder.d_model, moment_d_model)
-
 
         print(f"✓ proj_to_moment: {self.text_encoder.d_model} → {moment_d_model} (trainable)")
 
-        # 4. L2Prompt (TRAINABLE)
         self.l2prompt = L2PromptPool(
             pool_size=pool_size,
             prompt_length=prompt_length,
@@ -222,10 +205,9 @@ class PromptedMOMENT(nn.Module):
         )
         print(f"✓ L2Prompt: pool_size={pool_size}, prompt_length={prompt_length}, top_k={top_k}")
 
-        # 5. Task Predictor (TRAINABLE)
         self.task_predictor = TaskPredictor(n_tasks=n_tasks, d_model=moment_d_model)
         self.pooled_norm = nn.LayerNorm(moment_d_model)
-        # 6. Classifier (TRAINABLE)
+
         self.classifier = MultiHeadClassifier(
             n_tasks=n_tasks,
             classes_per_task=classes_per_task,
@@ -237,61 +219,41 @@ class PromptedMOMENT(nn.Module):
         self.d_model = moment_d_model
 
     def freeze_task(self, task_id):
-        """Freeze classifier head and task key for a specific task"""
         for param in self.classifier.heads[task_id].parameters():
             param.requires_grad = False
         self.task_predictor.freeze_task_key(task_id)
         print(f"🔒 Task {task_id} frozen (classifier + task_key)")
 
-    def forward(self, x_enc, labels=None, task_id=None, compute_task_loss=False):
-        """
-        Unificado: entrenamiento + inferencia
-
-        Args:
-            x_enc: tensor de entrada [B, seq_len, feats]
-            labels: etiquetas de clase (solo en entrenamiento)
-            task_id: id de tarea (entrenamiento supervisado o inferencia)
-            compute_task_loss: si True, calcula task_loss y task_acc
-        Returns:
-            - Si compute_task_loss=False → (logits, task_info)
-            - Si compute_task_loss=True → (logits, total_loss, task_acc, task_info)
-        """
+    def forward(self, x_enc, labels=None, task_id=None, compute_task_loss=False, return_task_info=False):
         bsz = x_enc.size(0)
         device = x_enc.device
 
-        # === 1. Text encoder (congelado) ===
         with torch.no_grad():
-            base_feats = self.text_encoder(x_enc)  # [B, text_d_model]
+            base_feats = self.text_encoder(x_enc)
 
-        # === 2. Proyección a espacio MOMENT ===
         base_feats_proj = self.proj_to_moment(base_feats)
         base_feats_moment = base_feats_proj.unsqueeze(1)
 
-        # === 3. MOMENT encoder (congelado) ===
         with torch.no_grad():
             self.moment.eval()
             outputs = self.moment.encoder(inputs_embeds=base_feats_moment)
             hidden_states = outputs.last_hidden_state
             pooled_frozen = hidden_states.mean(dim=1)
 
-        # === 4. Prompts ===
         query = pooled_frozen
         selected_prompts, _ = self.l2prompt.select_prompts_from_query(query.unsqueeze(1))
         prompted = torch.cat([selected_prompts, base_feats_proj.detach().unsqueeze(1)], dim=1)
-        
+
         with torch.no_grad():
             self.moment.eval()
             outputs = self.moment.encoder(inputs_embeds=prompted)
             hidden_states = outputs.last_hidden_state
             pooled = hidden_states.mean(dim=1)
 
-        # === 5. Task prediction ===
         task_info = self.task_predictor(pooled, training=self.training, task_id=task_id)
 
-        # === 6. Clasificación ===
         logits = self.classifier(pooled, task_id if task_id is not None else task_info['predicted_task'])
 
-        # === 7. Task loss opcional ===
         if compute_task_loss and task_id is not None:
             task_targets = torch.full((bsz,), task_id, dtype=torch.long, device=device)
             task_loss = F.cross_entropy(task_info['task_logits'], task_targets)
@@ -299,4 +261,7 @@ class PromptedMOMENT(nn.Module):
             task_acc = task_preds.eq(task_targets).float().mean()
             return logits, task_loss, task_acc, task_info
 
-        return logits, task_info
+        if return_task_info:
+            return logits, task_info
+
+        return logits

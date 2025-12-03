@@ -86,26 +86,18 @@ def moment_1_small_cllora(tuning_config=None, **kwargs):
             self.msa_adapt = getattr(config, 'msa_adapt', False)
             self.use_block_weight = getattr(config, 'use_block_weight', False)
             self.use_distillation = getattr(config, 'use_distillation', False)
-
-            # 🔧 Asegurar que MSA siempre esté definido antes de usarlo
             self.msa = getattr(config, 'msa', [1, 1, 1])
 
             self.general_pos = getattr(config, 'general_pos', [])
             self.specfic_pos = getattr(config, 'specfic_pos', [])
             self.adapt_pos = sorted(self.general_pos + self.specfic_pos)
-
-            # CLS token
             self.cls_token = nn.Parameter(torch.zeros(1, 1, self.d_model))
             nn.init.trunc_normal_(self.cls_token, std=0.02)
-
-            # Input projection
             self.proj = nn.Linear(45, self.d_model).to(self._device)
 
-            # Freeze MOMENT backbone
             for p in self.moment.parameters():
                 p.requires_grad = False
 
-            # Extract encoder blocks
             if hasattr(self.moment, 'model') and hasattr(self.moment.model, 'encoder'):
                 encoder = self.moment.model.encoder
             elif hasattr(self.moment, 'encoder'):
@@ -164,7 +156,6 @@ def moment_1_small_cllora(tuning_config=None, **kwargs):
                 self._attention_qkv.append(qkv_dict)
                 self._qkv_dim_lookup.append(dim_lookup)
 
-            # Adapter and block weights
             self._active_adapter_mapping = {}
             self._active_block_weight_mapping = {}
             self.adapter_list = []
@@ -404,7 +395,6 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
 
                 mapping = parent._active_adapter_mapping
 
-                # 🔧 ADD THIS DEBUG CODE (only prints once per block):
                 if not hasattr(self, '_debug_printed'):
                     if mapping:
                         has_adapter = self.block_idx in mapping
@@ -419,7 +409,6 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
                         if adapter_module is not None and not isinstance(adapter_module, nn.Identity):
                             delta = adapter_module(x)
 
-                            # 🔧 ADD THIS DEBUG CODE (only first time):
                             if not hasattr(adapter_module, '_debug_used'):
                                 print(f"[DEBUG] ✅ Adapter used: Block {self.block_idx}, MSA {self.msa_idx}, "
                                       f"delta norm={delta.norm().item():.4f}")
@@ -592,8 +581,7 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
                 selected = weight_tensor[msa_idx]
             if selected.device != reference_tensor.device or selected.dtype != reference_tensor.dtype:
                 selected = selected.to(reference_tensor.device, reference_tensor.dtype)
-            # ensure the returned tensor does not share storage with the
-            # underlying parameter slice to avoid in-place versioning issues
+
             selected = selected.clone()
             if selected.dim() == 0:
                 selected = selected.reshape(1, 1, 1)
@@ -752,7 +740,6 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
             return hidden_states
 
         def _build_adapter_mapping(self, saved_index=None):
-            # Fixed: Only check msa_adapt, not ffn_adapt (we use MSA adapters, not FFN)
             if not getattr(self, 'msa_adapt', False):
                 return {}, {}
 
@@ -828,7 +815,6 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
 
             current_mapping, current_weights = self._build_adapter_mapping(saved_index=None)
 
-            # 🔧 ADD THIS DEBUG CODE (only first time):
             if not hasattr(self, '_debug_train_printed'):
                 print(f"\n[DEBUG] forward_train:")
                 print(f"  Mapping has {len(current_mapping)} blocks")
@@ -855,7 +841,6 @@ def moment_1_large_cllora(tuning_config=None, **kwargs):
                                                            grad_enabled=False)
                 features.append(hidden_states.mean(dim=1))
 
-            # Fixed: Only check msa_adapt, not ffn_adapt (we use MSA adapters, not FFN)
             if getattr(self, 'msa_adapt', False):
                 for adapter_idx in range(len(self.adapter_list)):
                     mapping, block_weights = self._build_adapter_mapping(saved_index=adapter_idx)

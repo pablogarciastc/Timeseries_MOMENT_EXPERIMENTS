@@ -1,8 +1,3 @@
-"""
-cllora_textlets.py - Con Task-Conditional BatchNorm (mantiene agnosticismo)
-+ PCA para reducción de dimensionalidad de LLaMA embeddings
-"""
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,29 +6,28 @@ from coda_prompt import CODAPromptPool
 
 
 class StaticClassStatistics(nn.Module):
-    """Embeddings estáticos basados en estadísticos pre-calculados por clase"""
     def __init__(self, bottleneck_dim=512):
         super().__init__()
 
         self.class_stats = {
-            0: [0.325, 0.001, 0.0, 1.0, 1.0, 5.0, -0.866, 0.345, 0.823],     # Sitting
-            1: [0.246, 0.000, 0.0, 0.5, 1.0, 2.0, -0.106, 0.315, 0.601],     # Standing
-            2: [0.202, 0.001, 0.0, 1.0, 1.0, 2.0, 1.025, 0.448, 0.859],      # Lying on back
-            3: [-0.109, 0.000, 0.0, 0.5, 1.0, 3.0, -0.667, 0.447, 0.672],    # Lying on right side
-            4: [0.219, 0.031, 0.5, 1.0, 1.0, 25.0, -1.228, 0.039, 0.959],    # Ascending stairs
-            5: [0.233, 0.034, 0.5, 1.0, 1.0, 25.0, -1.364, 0.238, 0.941],    # Descending stairs
-            6: [0.248, 0.001, 0.0, 1.0, 1.0, 1.0, 0.262, -0.198, 0.820],     # Standing in elevator still
-            7: [0.156, 0.007, 0.0, 1.0, 1.0, 1.0, 0.371, -0.186, 0.735],     # Moving in elevator
-            8: [0.195, 0.012, 0.25, 0.5, 1.0, 0.0, 0.431, -0.179, 0.371],    # Walking in parking lot
-            9: [0.188, 0.009, 0.0, 0.5, 28.0, 0.0, 0.050, -0.564, 0.190],    # Walking treadmill flat
-            10: [0.129, 0.013, 0.5, 0.5, 31.0, 0.0, -0.184, -0.609, 0.562],  # Walking treadmill inclined
-            11: [-0.205, 0.025, 0.5, 0.5, 24.0, 0.0, -0.160, -0.252, 0.315], # Running on treadmill
-            12: [0.130, 0.009, 0.25, 0.5, 1.0, 0.0, 0.031, -0.675, 0.471],   # Exercising on stepper
-            13: [-0.175, 0.012, 0.25, 0.5, 1.0, 0.0, -0.031, -0.777, 0.621], # Exercising on cross trainer
-            14: [0.607, 0.007, 0.0, 1.0, 1.0, 1.0, 0.298, -0.170, 0.773],    # Cycling horizontal
-            15: [0.587, 0.011, 0.0, 1.0, 1.0, 0.0, -0.116, -0.436, 0.841],   # Cycling vertical
-            16: [0.143, 0.029, 1.0, 0.5, 11.0, 5.0, 0.023, 0.247, 0.169],    # Rowing
-            17: [0.040, 0.028, 1.0, 0.5, 1.0, 0.0, -0.166, -0.547, 0.466],   # Jumping
+            0: [0.325, 0.001, 0.0, 1.0, 1.0, 5.0, -0.866, 0.345, 0.823],
+            1: [0.246, 0.000, 0.0, 0.5, 1.0, 2.0, -0.106, 0.315, 0.601],
+            2: [0.202, 0.001, 0.0, 1.0, 1.0, 2.0, 1.025, 0.448, 0.859],
+            3: [-0.109, 0.000, 0.0, 0.5, 1.0, 3.0, -0.667, 0.447, 0.672],
+            4: [0.219, 0.031, 0.5, 1.0, 1.0, 25.0, -1.228, 0.039, 0.959],
+            5: [0.233, 0.034, 0.5, 1.0, 1.0, 25.0, -1.364, 0.238, 0.941],
+            6: [0.248, 0.001, 0.0, 1.0, 1.0, 1.0, 0.262, -0.198, 0.820],
+            7: [0.156, 0.007, 0.0, 1.0, 1.0, 1.0, 0.371, -0.186, 0.735],
+            8: [0.195, 0.012, 0.25, 0.5, 1.0, 0.0, 0.431, -0.179, 0.371],
+            9: [0.188, 0.009, 0.0, 0.5, 28.0, 0.0, 0.050, -0.564, 0.190],
+            10: [0.129, 0.013, 0.5, 0.5, 31.0, 0.0, -0.184, -0.609, 0.562],
+            11: [-0.205, 0.025, 0.5, 0.5, 24.0, 0.0, -0.160, -0.252, 0.315],
+            12: [0.130, 0.009, 0.25, 0.5, 1.0, 0.0, 0.031, -0.675, 0.471],
+            13: [-0.175, 0.012, 0.25, 0.5, 1.0, 0.0, -0.031, -0.777, 0.621],
+            14: [0.607, 0.007, 0.0, 1.0, 1.0, 1.0, 0.298, -0.170, 0.773],
+            15: [0.587, 0.011, 0.0, 1.0, 1.0, 0.0, -0.116, -0.436, 0.841],
+            16: [0.143, 0.029, 1.0, 0.5, 11.0, 5.0, 0.023, 0.247, 0.169],
+            17: [0.040, 0.028, 1.0, 0.5, 1.0, 0.0, -0.166, -0.547, 0.466],
         }
 
         stats_list = [self.class_stats[i] for i in range(len(self.class_stats))]
@@ -69,10 +63,8 @@ class TextEmbedderLETS(nn.Module):
             bnb_4bit_quant_type="nf4"
         )
 
-        # ✅ Use your Hugging Face auth
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=True)
 
-        # ✅ FIX: Set padding token to eos_token for Llama models
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
@@ -93,13 +85,11 @@ class TextEmbedderLETS(nn.Module):
 
 
     def format_series_as_text(self, seq):
-        """Versión mejorada con contexto estadístico"""
         channel_texts = []
         for ch_id, channel in enumerate(seq):
-            # Valores escalados
             scale = 10 ** self.precision
             channel_scaled = torch.round(channel * scale).long().tolist()
-            values_str = " ".join([str(int(v)) for v in channel_scaled[:50]])  # Limitar longitud
+            values_str = " ".join([str(int(v)) for v in channel_scaled[:50]])
 
             channel_text = (
                 f"Channel {ch_id + 1}: "
@@ -137,32 +127,23 @@ class TextEmbedderLETS(nn.Module):
         series_emb = self.series_proj(series_mean)
         series_emb = F.normalize(series_emb, dim=-1)
 
-        # 🔗 Fuse textual + numeric embedding (LETS-style)
         e_fused = e_text + series_emb
         return e_fused
 
 
 class TaskPredictor(nn.Module):
-    """
-    Predicts task-ID from features using learnable task keys.
-    Each task has an independent nn.Parameter that can be frozen.
-    """
-
     def __init__(self, n_tasks, d_model):
         super().__init__()
         self.n_tasks = n_tasks
         self.d_model = d_model
 
-        # Use ParameterList so we can freeze individual task keys
         self.task_keys = nn.ParameterList([
             nn.Parameter(torch.randn(d_model)) for _ in range(n_tasks)
         ])
 
-        # Initialize orthogonally for better separation
         for i, key in enumerate(self.task_keys):
             nn.init.normal_(key, mean=0, std=0.02)
 
-        # Temperature for softmax
         self.temperature = nn.Parameter(torch.ones(1))
 
         print(f"TaskPredictor: {n_tasks} tasks, {d_model} dims")
@@ -173,11 +154,9 @@ class TaskPredictor(nn.Module):
         return x * x_inv_norm
 
     def freeze_task_key(self, task_id):
-        """Freeze the key for a specific task"""
         self.task_keys[task_id].requires_grad = False
 
     def unfreeze_task_key(self, task_id):
-        """Unfreeze the key for a specific task"""
         self.task_keys[task_id].requires_grad = True
 
     def forward(self, x, training=False, task_id=None):
@@ -190,7 +169,6 @@ class TaskPredictor(nn.Module):
         task_probs = F.softmax(task_logits, dim=-1)
 
         if training and task_id is not None:
-            # supervision handled externally, no override here
             predicted_task = task_logits.argmax(dim=-1)
         else:
             _, pred_indices = task_logits.max(dim=-1)
@@ -235,9 +213,8 @@ class PromptedLETS(nn.Module):
                  use_pca=False, pca_dim=256):
         super().__init__()
 
-        # --- Text Encoder (frozen) ---
         self.text_encoder = TextEmbedderLETS(model_name="meta-llama/Llama-2-7b-hf")
-        d_model_original = self.text_encoder.d_model  # 4096 for LLaMA-2-7B
+        d_model_original = self.text_encoder.d_model
 
         for p in self.text_encoder.model.parameters():
             p.requires_grad = False
@@ -245,27 +222,24 @@ class PromptedLETS(nn.Module):
             p.requires_grad = False
         print("🧊 Text encoder frozen (LLaMA + series_proj)")
 
-        # --- ⭐ PCA Projection Layer ---
         self.use_pca = use_pca
         if use_pca:
             self.pca_projection = nn.Linear(d_model_original, pca_dim)
-            d_model = pca_dim  # Esta es la dimensión que CODA-Prompt usará
+            d_model = pca_dim
         else:
             d_model = d_model_original
 
-        # Inicializa CODA-Prompt con la dimensión correcta
         self.coda_prompt = CODAPromptPool(
             n_tasks=n_tasks,
             pool_size=pool_size,
             prompt_length=prompt_length,
-            d_model=d_model,  # Usa d_model (256) no d_model_original (4096)
+            d_model=d_model,
             top_k=top_k,
             use_g_prompt=True,
             use_e_prompt=True
         )
         print(f"L2Prompt initialized: pool_size={pool_size}, top_k={top_k}")
 
-        # --- Task predictor + classifier ---
         self.task_predictor = TaskPredictor(n_tasks, d_model)
         self.classifier = MultiHeadClassifier(n_tasks, classes_per_task, d_model)
 
@@ -282,26 +256,21 @@ class PromptedLETS(nn.Module):
 
 
     def forward(self, x_enc, task_id=None, return_task_info=False):
-        base_feats = self.text_encoder(x_enc)  # [B, d_model_original]
+        base_feats = self.text_encoder(x_enc)
 
-        # Apply PCA projection if enabled
         if self.use_pca:
-            base_feats = self.pca_projection(base_feats)  # [B, pca_dim]
+            base_feats = self.pca_projection(base_feats)
 
-        base_feats = base_feats.unsqueeze(1)  # [B, 1, d_model]
+        base_feats = base_feats.unsqueeze(1)
 
-        # Si no tienes task_id, primero predícelo
         if task_id is None:
-            # Primero obtén una representación básica sin prompts para predecir la tarea
             task_info = self.task_predictor(base_feats.mean(dim=1), training=False)
             predicted_task = task_info["predicted_task"]
             task_id = predicted_task
 
-        # Ahora aplica CODA-Prompt con el task_id
         prompted = self.coda_prompt(base_feats, task_id=task_id)
         prompted_flat = prompted.mean(dim=1)
 
-        # Re-evalúa la predicción de tarea si es necesario
         if return_task_info:
             task_info = self.task_predictor(prompted_flat, training=False, task_id=task_id)
 
@@ -312,23 +281,20 @@ class PromptedLETS(nn.Module):
         return logits
 
     def forward_with_task_loss(self, x_enc, labels, task_id):
-        base_feats = self.text_encoder(x_enc)  # [B, d_model_original=4096]
+        base_feats = self.text_encoder(x_enc)
 
-        # ⭐ Apply PCA projection if enabled
         if self.use_pca:
-            base_feats = self.pca_projection(base_feats)  # [B, pca_dim=256]
+            base_feats = self.pca_projection(base_feats)
 
-        base_feats = base_feats.unsqueeze(1)  # [B, 1, d_model]
+        base_feats = base_feats.unsqueeze(1)
 
-        # ⚠️ IMPORTANTE: Pasa el task_id al CODA-Prompt
-        prompted = self.coda_prompt(base_feats, task_id=task_id)  # Necesitas pasar task_id aquí
+        prompted = self.coda_prompt(base_feats, task_id=task_id)
 
         prompted_flat = prompted.mean(dim=1)
 
         task_info = self.task_predictor(prompted_flat, training=True, task_id=task_id)
         logits = self.classifier(prompted_flat, task_id)
 
-        # Task classification loss
         task_targets = torch.full((x_enc.size(0),), task_id, dtype=torch.long, device=base_feats.device)
         task_loss = F.cross_entropy(task_info["task_logits"], task_targets)
         _, task_preds = task_info["task_logits"].max(dim=-1)

@@ -21,14 +21,6 @@ from utils import set_seed, AverageMeter, save_checkpoint, get_device
 
 
 class ContinualLearningTrainer:
-    """
-    Trainer con parameter freezing correcto
-
-    Estrategia:
-    1. Train Task T â†’ congela classifier head T y task key T
-    2. Train Task T+1 â†’ solo head T+1 y key T+1 son trainable
-    3. L2Prompt pool se entrena con LR reducido despuÃ©s del primer task
-    """
 
     def __init__(self, args):
         self.args = args
@@ -44,7 +36,6 @@ class ContinualLearningTrainer:
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
 
-        # Crear asignación automática de clases por tarea
         self.task_classes = {
             i: list(range(i * self.classes_per_task, (i + 1) * self.classes_per_task))
             for i in range(self.n_tasks)
@@ -80,14 +71,12 @@ class ContinualLearningTrainer:
 
         print(f"Train: {self.x_train.shape}, Test: {self.x_test.shape}")
 
-        # Detectar número total de clases
         n_classes = len(torch.unique(self.y_train))
         self.classes_per_task = n_classes // self.n_tasks
         if n_classes % self.n_tasks != 0:
             print(f"⚠️ Aviso: {n_classes} clases no se dividen exactamente entre {self.n_tasks} tareas.")
             print("Las últimas tareas podrían tener menos clases.")
 
-        # Crear asignación automática de clases por tarea
         self.task_classes = {}
         for i in range(self.n_tasks):
             start = i * self.classes_per_task
@@ -98,7 +87,6 @@ class ContinualLearningTrainer:
         for tid, classes in self.task_classes.items():
             print(f"Task {tid+1}: {classes}")
 
-        # Crear subconjuntos de entrenamiento y test
         self.task_train_data = {}
         self.task_test_data = {}
 
@@ -127,8 +115,7 @@ class ContinualLearningTrainer:
         if task_id == 0:
             prompt_lr = self.args.lr
         else:
-            # Tasks siguientes: LR reducido para prompts
-            prompt_lr = self.args.lr * 0.7  # 10x mÃ¡s bajo
+            prompt_lr = self.args.lr * 0.7
 
         optimizer_params = [
             {
@@ -137,24 +124,21 @@ class ContinualLearningTrainer:
                 'name': 'classifier'
             },
             {
-                # L2Prompt (prompt pool compartido)
                 'params': self.model.l2prompt.parameters(),
-                'lr': self.args.lr * 0.1,  # más bajo para estabilidad
+                'lr': self.args.lr * 0.1,
                 'name': 'l2prompt'
             },
             {
-                # Task key actual (aprende qué tarea es)
                 'params': [self.model.task_predictor.task_keys[task_id]],
                 'lr': self.args.lr * 0.3,
                 'name': 'task_key'
-            }  ,
-            {'params': self.model.proj_to_moment.parameters(), 'lr': self.args.lr * 0.1},  # ✓ AÑADIR
+            },
+            {'params': self.model.proj_to_moment.parameters(), 'lr': self.args.lr * 0.1},
         ]
 
         optimizer = optim.Adam(optimizer_params, weight_decay=self.args.weight_decay)
         criterion = nn.CrossEntropyLoss()
 
-        # Training loop
         self.model.train()
         for epoch in range(epochs):
             losses = AverageMeter()
@@ -200,9 +184,8 @@ class ContinualLearningTrainer:
             print(f"Epoch {epoch+1}: Loss={losses.avg:.4f}, "
                   f"Cls={cls_accs.avg*100:.2f}%, Task={task_accs.avg*100:.2f}%")
 
-        # ðŸ”’ CRITICAL: Congelar task despuÃ©s de entrenar
         self.model.freeze_task(task_id)
-        print(f"\nðŸ”’ Task {task_id} congelado\n")
+        print(f"\n🔒 Task {task_id} congelado\n")
 
     @torch.no_grad()
     def evaluate_task(self, task_id, use_oracle=False):
@@ -240,8 +223,6 @@ class ContinualLearningTrainer:
             correct += predicted_global.eq(y_batch).sum().item()
             total += y_batch.size(0)
 
-
-
         accuracy = 100.0 * correct / total
 
         if not use_oracle:
@@ -278,16 +259,12 @@ class ContinualLearningTrainer:
         initial_soft_accs = {}
 
         for task_id in range(self.n_tasks):
-            # Train
             self.train_task(task_id, self.args.epochs_per_task)
 
-
-            # Evaluate
             print(f"\n{'='*80}")
-            print(f"EvaluaciÃ³n despuÃ©s de Task {task_id + 1}")
+            print(f"Evaluación después de Task {task_id + 1}")
             print(f"{'='*80}")
 
-            # Oracle
             print(f"\n--- Oracle Mode (Upper Bound) ---")
             oracle_accs = self.evaluate_all_tasks(up_to_task=task_id + 1, use_oracle=True)
 
@@ -299,7 +276,6 @@ class ContinualLearningTrainer:
             oracle_avg = np.mean(list(oracle_accs.values()))
             print(f"Average: {oracle_avg:.2f}%")
 
-            # Soft
             print(f"\n--- Soft Prediction Mode ---")
             soft_accs, task_pred_accs = self.evaluate_all_tasks(up_to_task=task_id + 1, use_oracle=False)
 
@@ -314,7 +290,6 @@ class ContinualLearningTrainer:
             print(f"Average Acc: {soft_avg:.2f}%")
             print(f"Average Task Pred: {task_pred_avg:.2f}%")
 
-            # Forgetting
             if task_id > 0:
                 print(f"\n--- Forgetting ---")
 
@@ -419,7 +394,7 @@ class ContinualLearningTrainer:
         with open(results_path, 'w') as f:
             json.dump(results_serializable, f, indent=2)
 
-        print(f"\nâœ“ Resultados guardados: {results_path}")
+        print(f"\n✓ Resultados guardados: {results_path}")
 
         final_model_path = output_dir / 'final_model.pt'
         save_checkpoint({
@@ -428,7 +403,7 @@ class ContinualLearningTrainer:
             'config': vars(self.args)
         }, final_model_path)
 
-        print(f"âœ“ Modelo final guardado: {final_model_path}")
+        print(f"✓ Modelo final guardado: {final_model_path}")
 
 
 def main():
@@ -436,28 +411,23 @@ def main():
 
     parser.add_argument('--dataset', type=str, default='dailysport')
 
-    # Data
     parser.add_argument('--x_train', type=str, default='x_train.pkl')
     parser.add_argument('--x_test', type=str, default='x_test.pkl')
     parser.add_argument('--state_train', type=str, default='state_train.pkl')
     parser.add_argument('--state_test', type=str, default='state_test.pkl')
 
-    # Model
     parser.add_argument('--prompt_length', type=int, default=5)
     parser.add_argument('--pool_size', type=int, default=20)
     parser.add_argument('--top_k', type=int, default=5)
     parser.add_argument('--n_tasks', type=int, default=6)
 
-    # ðŸ”§ CRITICAL: task_loss_weight mÃ¡s alto
     parser.add_argument('--task_loss_weight', type=float, default=1.0)
 
-    # Training
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--epochs_per_task', type=int, default=20)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
 
-    # Other
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output_dir', type=str, default='continual_results')
     parser.add_argument('--save_checkpoints', action='store_true')
@@ -467,7 +437,7 @@ def main():
     trainer = ContinualLearningTrainer(args)
     results = trainer.run_continual_learning()
 
-    print("\nâœ… Entrenamiento completado!")
+    print("\n✅ Entrenamiento completado!")
 
 
 if __name__ == "__main__":
