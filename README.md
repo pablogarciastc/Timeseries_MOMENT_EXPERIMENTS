@@ -7,6 +7,8 @@ This repository implements APT (Attentive Prompt Tuning) combined with the MOMEN
 based on ["APT: Adaptive Prompt Tuning for Continual Learning" (arxiv:2503.07979)](https://arxiv.org/pdf/2503.07979).  
 APT employs an exponential moving average (EMA) strategy to merge prompts
 #### Use command example
+`python3 run.py --config configs/dailysport.yaml --gpuid 0   --learner_type prompt --learner_name APT_Learner   --prompt_param 0.01 --ema_coeff 0.01 --lr 0.0003   --schedule 10 --seed 3 --overwrite 1`
+
 
 ## CL-Lora-MOMENT
 
