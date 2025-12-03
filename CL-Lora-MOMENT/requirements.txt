@@ -1,33 +1,42 @@
-# requirements.txt - Fixed dependencies
+# requirements.txt - Compatible with momentfm constraints
 
-torch==2.4.1
-torchvision==0.19.1
+# Install momentfm and its exact dependencies first
 momentfm==0.1.4
-timm==0.4.12
-
-# Use compatible versions with momentfm
-transformers==4.33.3
-tokenizers==0.13.3
+numpy==1.25.2
 huggingface-hub==0.24.0
 
-numpy==2.2.6
-scipy==1.15.3
-pandas==2.3.3
+# Core ML (compatible versions)
+torch==2.4.1
+torchvision==0.19.1
+timm==0.4.12
 
+# Transformers (compatible with momentfm's huggingface-hub)
+transformers==4.33.3
+tokenizers==0.13.3
+
+# Data science (compatible with numpy 1.25.2)
+scipy==1.11.0
+pandas==2.0.3
+
+# Training utilities
 accelerate==1.11.0
 bitsandbytes==0.48.2
 safetensors==0.6.2
 
-scikit-learn==1.2.0
-matplotlib==3.10.7
+# ML utilities
+scikit-learn==1.3.0
+matplotlib==3.8.0
 seaborn==0.13.2
 
+# General utilities
 tqdm==4.67.1
 pyyaml==6.0.2
 easydict==1.13
 
+# Image processing
 opencv-python==4.12.0.88
 pillow==11.3.0
 
+# Network
 requests==2.28.1
 regex==2025.11.3
