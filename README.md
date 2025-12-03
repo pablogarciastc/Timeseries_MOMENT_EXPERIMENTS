@@ -16,6 +16,9 @@ APT employs an exponential moving average (EMA) strategy to merge prompts
 This repository implements CL-LoRA (Continual Learning with Low-Rank Adaptation) with the MOMENT foundation model. The approach 
 applies LoRA adapters. Each task gets its own set of LoRA adapters while keeping the MOMENT backbone frozen. The 
 implementation includes diagonal forward passes for task-specific feature routing and cosine linear classifiers with normalization.
+#### Use command example
+`python3 main.py exps/dailysports.json`
+
 
 ## Coda_Attention
 

@@ -155,7 +155,7 @@ class DataManager(object):
         """Load data from pickle files."""
         print("Loading data from pickle files...")
 
-        base_path = Path('../../data') / dataset_name
+        base_path = Path('../data') / dataset_name
 
         # Load training and test data
         self.x_train, self.y_train = prepare_dataset(
